@@ -1,0 +1,27 @@
+{
+  "name": "mavis-data-agent",
+  "version": "0.3.0",
+  "description": "Mavis Data Agent - multi-agent data analysis demo (Agent workflow + SQLite + Skill registry)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "seed": "node data/seed_sqlite.js",
+    "test": "node run_all.js",
+    "eval": "node tests/eval_v0.4_5dimensions.js",
+    "demo": "node tests/demo_v0.3.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.2"
+  },
+  "keywords": [
+    "ai-agent",
+    "multi-agent",
+    "data-analysis",
+    "sqlite",
+    "skill-registry"
+  ],
+  "license": "MIT"
+}
