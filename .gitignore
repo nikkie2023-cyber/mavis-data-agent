@@ -1,0 +1,40 @@
+# Mavis Data Agent .gitignore
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 数据 (启动时自动 seed, 不入仓)
+data/analytics.db
+data/ecommerce/*.csv
+data/app/*.csv
+data/_anomalies.json
+
+# 输出 (运行时生成)
+output/*.html
+output/*.docx
+output/*.js
+output/history.json
+output/audit.log
+output/feishu-mock.log
+output/server.*.log
+output/comments/
+
+# 环境
+.env
+.env.local
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
