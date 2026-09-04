@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Mavis Data Agent</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100vh; overflow: hidden; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #ffffff; color: #1f2937; font-size: 14px;
+}
+
+/* === 整体布局 === */
+.app {
+  display: grid;
+  grid-template-columns: 60px 260px 1fr 320px;
+  height: 100vh;
+}
+
+/* === 1. 最左 icon 栏 === */
+.iconbar {
+  background: #f9fafb; border-right: 1px solid #e5e7eb;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 12px 0; gap: 8px;
+}
+.iconbar .logo {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 8px; font-weight: 600;
+}
+.iconbar .icon-btn {
+  width: 40px; height: 40px; border-radius: 8px; border: none;
+  background: transparent; color: #6b7280; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; transition: all 0.15s;
+}
+.iconbar .icon-btn:hover { background: #f3f4f6; color: #1f2937; }
+.iconbar .icon-btn.active { background: #ede9fe; color: #4f46e5; }
+
+/* === 2. 历史栏 === */
+.history-panel { background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+.history-header {
+  padding: 14px 16px; border-bottom: 1px solid #f3f4f6;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.history-header h2 { font-size: 13px; font-weight: 600; color: #1f2937; }
+.history-header .new-btn {
+  background: #4f46e5; color: #fff; border: none;
+  padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+}
+.history-header .new-btn:hover { background: #6366f1; }
+
+.history-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.history-item {
+  padding: 12px 16px; cursor: pointer; transition: background 0.12s;
+  border-left: 3px solid transparent;
+}
+.history-item:hover { background: #f9fafb; }
+.history-item.active { background: #f5f3ff; border-left-color: #4f46e5; }
+.history-item .query {
+  font-size: 13px; font-weight: 500; margin-bottom: 4px;
+  color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-item .meta {
+  display: flex; gap: 8px; font-size: 11px; color: #9ca3af;
+  align-items: center;
+}
+.history-item .meta .status { color: #10b981; }
+.history-item .meta .status.failed { color: #ef4444; }
+.history-item.empty {
+  color: #9ca3af; text-align: center; padding: 40px 16px; cursor: default; font-size: 12px;
+}
+.history-item.empty:hover { background: transparent; }
+.history-item .actions { display: none; gap: 4px; margin-top: 6px; }
+.history-item:hover .actions { display: flex; }
+.history-item .actions button {
+  background: #f3f4f6; border: none; color: #4b5563;
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;
+}
+.history-item .actions button:hover { background: #e5e7eb; }
+
+/* === 3. 中间 (对话/进度) === */
+.center { display: flex; flex-direction: column; background: #fff; min-width: 0; }
+.center-header {
+  padding: 14px 20px; border-bottom: 1px solid #f3f4f6;
+  display: flex; align-items: center; gap: 10px;
+}
+.center-header h1 { font-size: 15px; font-weight: 600; color: #1f2937; }
+.center-header .badge {
+  background: #f0fdf4; color: #166534; padding: 2px 8px;
+  border-radius: 4px; font-size: 11px;
+}
+.center-header .llm-status {
+  margin-left: auto; font-size: 12px; color: #6b7280;
+  display: flex; align-items: center; gap: 6px;
+}
+.center-header .llm-status .dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #10b981;
+}
+.center-header .llm-status .dot.mock { background: #f59e0b; }
+
+.chat-area { flex: 1; overflow-y: auto; padding: 20px; }
+.chat-area .empty {
+  text-align: center; color: #9ca3af; margin-top: 60px;
+}
+.chat-area .empty h3 { font-size: 16px; color: #4b5563; margin-bottom: 6px; }
+.chat-area .empty p { font-size: 13px; }
+
+.query-bubble {
+  background: #f3f4f6; padding: 10px 14px; border-radius: 12px;
+  margin-bottom: 12px; max-width: 80%; font-size: 14px;
+}
+
+.step {
+  padding: 8px 0; margin-bottom: 2px;
+  background: transparent; border: none;
+  display: flex; align-items: center; gap: 10px;
+  animation: slideIn 0.15s ease-out;
+}
+@keyframes slideIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.step-icon { font-size: 16px; line-height: 1.4; }
+.step-content { flex: 1; min-width: 0; }
+.step-name { font-weight: 500; font-size: 13px; margin-bottom: 2px; }
+.step-detail { font-size: 12px; color: #6b7280; word-break: break-all; }
+.step-timing { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+
+/* === Agent 极简风格 (Mavis 风格) === */
+.agent-step {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; margin-bottom: 2px;
+  background: transparent;
+}
+.agent-icon {
+  width: 22px; height: 22px; flex-shrink: 0;
+  background: #3b82f6;
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.agent-icon::before, .agent-icon::after {
+  content: ''; position: absolute;
+  width: 3.5px; height: 3.5px; background: #fff;
+  border-radius: 50%; top: 6px;
+}
+.agent-icon::before { left: 5px; }
+.agent-icon::after { right: 5px; }
+.agent-icon .mouth {
+  position: absolute; bottom: 5px; left: 50%;
+  transform: translateX(-50%);
+  width: 7px; height: 3px;
+  border: 1.2px solid #fff;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+}
+.agent-content { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.agent-name { font-size: 13px; color: #1f2937; }
+.agent-status { font-size: 12px; color: #9ca3af; }
+.agent-status.thinking { color: #6b7280; }
+.agent-status.thinking::before {
+  content: '●';
+  margin-right: 4px;
+  color: #3b82f6;
+  animation: pulse 1.2s ease-in-out infinite;
+  font-size: 8px;
+  vertical-align: middle;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.agent-status.done { color: #9ca3af; }
+.agent-status.failed { color: #ef4444; }
+
+/* === 最终回答 (大块, 跟小步骤区分) === */
+.final-answer {
+  display: flex; gap: 12px; align-items: start;
+  background: #f0f9ff; border: 1px solid #bae6fd;
+  border-radius: 12px; padding: 14px 16px;
+  margin: 12px 0;
+  animation: slideIn 0.2s ease-out;
+}
+.final-answer .agent-icon {
+  width: 28px; height: 28px; border-radius: 6px;
+}
+.final-answer .agent-icon::before, .final-answer .agent-icon::after {
+  width: 4.5px; height: 4.5px; top: 8px;
+}
+.final-answer .agent-icon .mouth {
+  bottom: 6px; width: 9px; height: 4px; border-width: 1.5px;
+}
+.final-answer .content { flex: 1; min-width: 0; }
+.final-answer .metric-name {
+  font-size: 11px; color: #6b7280; margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.final-answer .summary {
+  font-size: 14px; line-height: 1.7; color: #1f2937;
+  white-space: pre-wrap; word-break: break-word;
+}
+.final-answer .actions {
+  margin-top: 10px; display: flex; gap: 8px; align-items: center;
+  font-size: 12px; color: #6b7280;
+}
+.final-answer .btn {
+  background: #3b82f6; color: #fff;
+  border: none; padding: 5px 12px; border-radius: 6px;
+  font-size: 12px; cursor: pointer;
+}
+.final-answer .btn:hover { background: #2563eb; }
+.final-answer .btn-secondary {
+  background: #fff; color: #3b82f6;
+  border: 1px solid #93c5fd;
+}
+.final-answer .btn-secondary:hover { background: #eff6ff; }
+.final-answer .llm-info {
+  font-size: 11px; color: #9ca3af; margin-left: auto;
+}
+
+.summary-card {
+  padding: 14px 16px; background: #f0f9ff; border: 1px solid #bae6fd;
+  border-radius: 8px; margin: 12px 0; line-height: 1.6; font-size: 13px;
+}
+.summary-card .llm-stats {
+  display: inline-flex; gap: 12px; padding: 4px 10px;
+  background: #fff; border-radius: 4px; font-size: 11px;
+  color: #6b7280; margin-top: 8px;
+}
+.summary-card .llm-stats .v { color: #059669; font-weight: 600; }
+
+/* === 输入区 (底部) === */
+.input-area {
+  padding: 14px 20px; border-top: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+.input-row { display: flex; gap: 8px; align-items: center; }
+.input-area input {
+  flex: 1; padding: 10px 14px;
+  border: 1px solid #e5e7eb; border-radius: 8px;
+  font-size: 14px; outline: none; background: #fff;
+}
+.input-area input:focus { border-color: #4f46e5; }
+.input-area input::placeholder { color: #9ca3af; }
+.input-area .send-btn {
+  padding: 10px 18px; background: #4f46e5; color: #fff;
+  border: none; border-radius: 8px; cursor: pointer;
+  font-size: 14px; font-weight: 500;
+}
+.input-area .send-btn:hover:not(:disabled) { background: #6366f1; }
+.input-area .send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+.input-toolbar {
+  display: flex; align-items: center; margin-top: 8px; gap: 8px;
+}
+.input-toolbar .quick-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+.input-toolbar .quick-btn {
+  background: #fff; border: 1px solid #e5e7eb; color: #4b5563;
+  padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer;
+}
+.input-toolbar .quick-btn:hover { background: #f3f4f6; }
+.input-toolbar .model-select {
+  margin-left: auto; display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #6b7280;
+}
+.input-toolbar .model-select select {
+  border: 1px solid #e5e7eb; border-radius: 6px; padding: 3px 8px;
+  font-size: 12px; background: #fff;
+}
+
+/* === 4. 右侧两栏 (进度 / 交付物) === */
+.right { display: flex; flex-direction: column; background: #fafafa; border-left: 1px solid #e5e7eb; }
+.right-panel { display: flex; flex-direction: column; border-bottom: 1px solid #e5e7eb; }
+.right-panel:last-child { border-bottom: none; }
+.right-panel-header {
+  padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none; background: #fff;
+}
+.right-panel-header h3 { font-size: 13px; font-weight: 600; color: #1f2937; }
+.right-panel-header .chevron { color: #9ca3af; font-size: 14px; transition: transform 0.2s; }
+.right-panel.collapsed .chevron { transform: rotate(-90deg); }
+.right-panel.collapsed .right-panel-body { display: none; }
+.right-panel-body { padding: 0 16px 16px 16px; max-height: 320px; overflow-y: auto; background: #fff; flex: 1; }
+
+.right-panel-body.flex { flex: 1; max-height: none; }
+
+/* 进度 (极简版) */
+.progress-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; font-size: 12px;
+  border-bottom: 1px solid #f9fafb;
+}
+.progress-item:last-child { border-bottom: none; }
+.progress-item .dot {
+  flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%;
+  background: #d1d5db;
+}
+.progress-item.thinking .dot { background: #3b82f6; animation: pulse 1.2s ease-in-out infinite; }
+.progress-item.done .dot { background: #10b981; }
+.progress-item.failed .dot { background: #ef4444; }
+.progress-item .label { color: #4b5563; flex: 1; }
+.progress-item.thinking .label { color: #1f2937; }
+.progress-item.failed .label { color: #ef4444; }
+
+/* 文件树 (交付物) */
+.file-tree { font-size: 12px; }
+.file-tree .folder { color: #4b5563; font-weight: 500; padding: 4px 0; }
+.file-tree .file {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 0 4px 16px; color: #4b5563;
+  cursor: pointer; border-radius: 4px;
+}
+.file-tree .file:hover { background: #f3f4f6; color: #4f46e5; }
+.file-tree .file .icon { flex-shrink: 0; }
+.file-tree .file .size { margin-left: auto; color: #9ca3af; font-size: 10px; }
+
+/* === Modal 预览 === */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: none; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-mask.show { display: flex; }
+.modal {
+  background: #fff; border-radius: 12px; width: 90%; max-width: 1100px;
+  height: 85vh; display: flex; flex-direction: column; overflow: hidden;
+}
+.modal-header {
+  padding: 12px 20px; border-bottom: 1px solid #e5e7eb;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-header h3 { font-size: 14px; font-weight: 600; }
+.modal-header button {
+  background: #f3f4f6; border: none; color: #6b7280;
+  padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+}
+.modal-body { flex: 1; overflow: auto; padding: 0; background: #fff; }
+.modal-body iframe { width: 100%; height: 100%; border: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 1. icon 栏 -->
+  <div class="iconbar">
+    <div class="logo">M</div>
+    <button class="icon-btn active" title="新任务">＋</button>
+    <button class="icon-btn" title="搜索">🔍</button>
+    <button class="icon-btn" title="插件">🧩</button>
+    <button class="icon-btn" title="定时任务">⏰</button>
+  </div>
+
+  <!-- 2. 历史栏 -->
+  <div class="history-panel">
+    <div class="history-header">
+      <h2>📋 历史记录</h2>
+      <button class="new-btn" onclick="newConversation()">+ 新建</button>
+    </div>
+    <div class="history-list" id="history"></div>
+  </div>
+
+  <!-- 3. 中间 (对话) -->
+  <div class="center">
+    <div class="center-header">
+      <h1>🤖 Mavis Data Agent</h1>
+      <span class="badge">v0.2</span>
+      <span class="badge source-badge" id="sourceBadge" title="数据源 (DATA_SOURCE env)">SQL</span>
+      <div class="llm-status" id="llmStatus">
+        <span class="dot"></span>加载中...
+      </div>
+    </div>
+    <div class="chat-area" id="chatArea">
+      <div class="empty" id="emptyState">
+        <h3>👋 开始你的第一个分析</h3>
+        <p>输入问题或点击下方快捷示例, 看 agent 实时执行</p>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-row">
+        <input id="queryInput" placeholder="试试: DAU 为啥跌了? 最近 GMV 多少? 客单价怎么样?"
+               autocomplete="off" autofocus>
+        <button class="send-btn" id="sendBtn">发送</button>
+      </div>
+      <div class="input-toolbar">
+        <div class="quick-btns">
+          <button class="quick-btn" onclick="quickQuery('DAU 为啥跌了')">DAU 为啥跌</button>
+          <button class="quick-btn" onclick="quickQuery('最近 GMV 多少')">最近 GMV</button>
+          <button class="quick-btn" onclick="quickQuery('客单价怎么样')">客单价</button>
+          <button class="quick-btn" onclick="quickQuery('次日留存')">次日留存</button>
+          <button class="quick-btn" onclick="quickQuery('退款率')">退款率</button>
+        </div>
+        <div class="model-select">
+          模型: <select id="modelSelect">
+            <option value="deepseek-chat">DeepSeek-V3</option>
+            <option value="deepseek-reasoner">DeepSeek-R1</option>
+            <option value="mock">Mock</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 右侧两栏 -->
+  <div class="right">
+    <div class="right-panel" id="progressPanel">
+      <div class="right-panel-header" onclick="togglePanel('progressPanel')">
+        <h3>📋 进度</h3>
+        <span class="chevron">∨</span>
+      </div>
+      <div class="right-panel-body" id="progressList">
+        <div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px 0;">
+          暂无任务, 发送问题后这里显示执行进度
+        </div>
+      </div>
+    </div>
+    <div class="right-panel flex" id="deliverablePanel">
+      <div class="right-panel-header" onclick="togglePanel('deliverablePanel')">
+        <h3>📁 交付物</h3>
+        <span class="chevron">∨</span>
+      </div>
+      <div class="right-panel-body" id="fileTree">
+        <div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px 0;">
+          加载中...
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal 预览 -->
+<div class="modal-mask" id="modal" onclick="if(event.target.id==='modal') closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">预览</h3>
+      <button onclick="closeModal()">关闭 ✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const queryInput = $('queryInput');
+const sendBtn = $('sendBtn');
+const chatArea = $('chatArea');
+const historyEl = $('history');
+const progressList = $('progressList');
+const fileTreeEl = $('fileTree');
+const llmStatusEl = $('llmStatus');
+const emptyState = $('emptyState');
+const modal = $('modal');
+const modelSelect = $('modelSelect');
+
+const STEP_LABELS = {
+  metric_resolution: '🔍 解析指标',
+  data_fetch: '📊 取数',
+  anomaly_detection: '🚨 异常检测 + 自动验证',
+  data_validation: '✅ 数据验证',
+  report_generation: '📄 生成报告'
+};
+
+let isRunning = false;
+let currentSteps = new Map();
+
+function quickQuery(q) { queryInput.value = q; send(); }
+
+function newConversation() {
+  if (isRunning) return;
+  currentSteps.clear();
+  chatArea.innerHTML = '';
+  progressList.innerHTML = '<div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px 0;">暂无任务</div>';
+  if (emptyState) chatArea.appendChild(emptyState);
+  queryInput.value = '';
+  queryInput.focus();
+}
+
+function togglePanel(id) {
+  $(id).classList.toggle('collapsed');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderHistory(items) {
+  if (!items.length) {
+    historyEl.innerHTML = '<div class="history-item empty">📭<br>暂无历史<br>试试发送查询</div>';
+    return;
+  }
+  historyEl.innerHTML = items.map(item => {
+    const dur = item.durationMs ? `${(item.durationMs/1000).toFixed(1)}s` : '-';
+    return `
+      <div class="history-item" data-id="${item.id}">
+        <div class="query">${escapeHtml(item.query)}</div>
+        <div class="meta">
+          <span>${dur}</span>
+          ${item.llmStats ? `<span>${item.llmStats.tokens || 0}t</span>` : ''}
+        </div>
+        ${item.reportFile ? `<div class="actions">
+          <button onclick="openFile('/report/${item.reportFile}')">查看报告</button>
+        </div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadHistory() {
+  const res = await fetch('/api/history');
+  const items = await res.json();
+  renderHistory(items);
+}
+
+async function loadSource() {
+  try {
+    const res = await fetch('/api/source');
+    const data = await res.json();
+    const badge = $('sourceBadge');
+    if (badge) {
+      badge.textContent = data.mode.toUpperCase();
+      badge.title = `数据源: ${data.mode.toUpperCase()} (env DATA_SOURCE 控制, 当前: ${data.mode})`;
+      badge.style.background = data.mode === 'sql' ? '#dbeafe' : '#fef3c7';
+      badge.style.color = data.mode === 'sql' ? '#1e40af' : '#92400e';
+    }
+  } catch (e) {
+    console.error('load source failed:', e);
+  }
+}
+
+async function loadFiles() {
+  try {
+    const res = await fetch('/api/files');
+    const tree = await res.json();
+    fileTreeEl.innerHTML = renderFileTree(tree);
+  } catch (e) {
+    fileTreeEl.innerHTML = '<div style="color: #ef4444; font-size: 12px;">加载失败</div>';
+  }
+}
+
+function renderFileTree(tree) {
+  let html = '';
+  function render(nodes, depth) {
+    nodes.forEach(node => {
+      const indent = depth * 12;
+      if (node.type === 'folder') {
+        html += `<div class="folder" style="padding-left: ${indent}px;">📁 ${escapeHtml(node.name)}</div>`;
+        render(node.children || [], depth + 1);
+      } else {
+        const size = node.size ? `(${(node.size/1024).toFixed(1)}KB)` : '';
+        const url = node.url;
+        html += `<div class="file" style="padding-left: ${indent}px;" onclick="openFile('${url}')">
+          <span class="icon">📄</span>
+          <span>${escapeHtml(node.name)}</span>
+          <span class="size">${size}</span>
+        </div>`;
+      }
+    });
+  }
+  render(tree, 0);
+  return html || '<div style="color: #9ca3af; font-size: 12px; text-align: center; padding: 20px 0;">暂无文件</div>';
+}
+
+function openFile(url) {
+  if (url.endsWith('.html')) {
+    $('modalTitle').textContent = url.split('/').pop();
+    $('modalBody').innerHTML = `<iframe src="${url}"></iframe>`;
+    modal.classList.add('show');
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
+function closeModal() { modal.classList.remove('show'); }
+
+function updateProgress(event) {
+  if (event.type === 'step_start') {
+    currentSteps.set(event.name, { ...event, status: 'active' });
+  } else if (event.type === 'step_done') {
+    currentSteps.set(event.name, { ...event, status: event.status === 'failed' ? 'failed' : 'done' });
+  } else if (event.type === 'done') {
+    return;
+  }
+  renderProgress();
+}
+
+function renderProgress() {
+  const items = Array.from(currentSteps.values());
+  if (!items.length) {
+    progressList.innerHTML = '<div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px 0;">暂无任务</div>';
+    return;
+  }
+  progressList.innerHTML = items.map(item => {
+    const label = STEP_LABELS[item.name] || item.name;
+    return `
+      <div class="progress-item ${item.status}">
+        <div class="dot"></div>
+        <div class="label">${label}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateChatStep(event) {
+  if (emptyState?.parentNode) emptyState.remove();
+  let el = $('chat-step-' + event.name);
+
+  const isStart = event.type === 'step_start';
+  const isDone = event.type === 'step_done';
+  const failed = event.status === 'failed';
+  let statusClass = 'thinking';
+  let statusText = '展开中...';
+  if (isDone) {
+    statusClass = failed ? 'failed' : 'done';
+    statusText = failed ? '出错' : '完成';
+  }
+
+  const html = `
+    <div class="agent-step">
+      <div class="agent-icon"><div class="mouth"></div></div>
+      <div class="agent-content">
+        <div class="agent-name">${STEP_LABELS[event.name] || event.name}</div>
+        <div class="agent-status ${statusClass}">${statusText}</div>
+      </div>
+    </div>
+  `;
+  if (el) {
+    el.outerHTML = `<div id="chat-step-${event.name}">${html}</div>`;
+  } else {
+    const div = document.createElement('div');
+    div.id = 'chat-step-' + event.name;
+    div.innerHTML = html;
+    chatArea.appendChild(div);
+  }
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function showQuery(query) {
+  if (emptyState?.parentNode) emptyState.remove();
+  const div = document.createElement('div');
+  div.className = 'query-bubble';
+  div.textContent = query;
+  chatArea.appendChild(div);
+}
+
+async function send() {
+  const query = queryInput.value.trim();
+  if (!query || isRunning) return;
+
+  isRunning = true;
+  sendBtn.disabled = true;
+  currentSteps.clear();
+  renderProgress();
+  showQuery(query);
+
+  try {
+    const response = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, model: modelSelect.value })
+    });
+
+    if (!response.ok) {
+      chatArea.insertAdjacentHTML('beforeend', `<div class="step failed"><div class="step-icon">✗</div><div class="step-content"><div class="step-name">请求失败 ${response.status}</div></div></div>`);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          handleEvent(event);
+        } catch (e) { console.error('Parse error:', line); }
+      }
+    }
+  } catch (e) {
+    chatArea.insertAdjacentHTML('beforeend', `<div class="step failed"><div class="step-icon">✗</div><div class="step-content"><div class="step-name">${escapeHtml(e.message)}</div></div></div>`);
+  } finally {
+    isRunning = false;
+    sendBtn.disabled = false;
+    loadHistory();
+    loadFiles();
+  }
+}
+
+function handleEvent(event) {
+  if (event.type === 'start') {
+    llmStatusEl.innerHTML = `<span class="dot ${event.llm_mode === 'mock' ? 'mock' : ''}"></span>${event.llm_mode === 'deepseek' ? 'DeepSeek-V3 (真实)' : 'Mock'}`;
+  } else if (event.type === 'step_start' || event.type === 'step_done') {
+    updateChatStep(event);
+    updateProgress(event);
+  } else if (event.type === 'final_answer') {
+    showFinalAnswer(event);
+  } else if (event.type === 'report_ready') {
+    // 不自动弹, 留给用户点按钮
+  }
+}
+
+function showFinalAnswer(event) {
+  // 如果已经有, 不重复
+  if ($('final-answer')) return;
+  const div = document.createElement('div');
+  div.id = 'final-answer';
+  div.className = 'final-answer';
+  const llmInfo = event.llmStats ?
+    `<span class="llm-info">🧠 ${event.llmStats.tokens}t · ${(event.llmStats.cost || 0).toFixed(4)}元</span>` : '';
+  div.innerHTML = `
+    <div class="agent-icon"><div class="mouth"></div></div>
+    <div class="content">
+      <div class="metric-name">${escapeHtml(event.metric || '回答')}</div>
+      <div class="summary">${escapeHtml(event.summary || '分析完成')}</div>
+      <div class="actions">
+        ${event.reportUrl ?
+          `<button class="btn" onclick="openFile('${event.reportUrl}')">📄 查看完整报告</button>
+           <button class="btn-secondary" onclick="navigator.clipboard.writeText('${event.reportUrl}'); this.textContent='✓ 已复制'">复制链接</button>` :
+          ''}
+        ${llmInfo}
+      </div>
+    </div>
+  `;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+queryInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+sendBtn.addEventListener('click', send);
+
+loadHistory();
+loadFiles();
+loadSource();
+</script>
+</body>
+</html>
