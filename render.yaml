@@ -1,0 +1,35 @@
+# Render Blueprint: Mavis Data Agent 部署配置
+# 文档: https://render.com/docs/blueprint-spec
+#
+# 部署步骤:
+#   1. push 这个项目到 GitHub
+#   2. 登录 https://render.com, New + Blueprint
+#   3. 选你的 GitHub repo, Render 自动检测这个 yaml 部署
+#   4. 在 Render dashboard 配 DEEPSEEK_API_KEY env (可选, 不配就 Mock 模式)
+#   5. 等 5-10 分钟, 得 https://mavis-data-agent.onrender.com
+
+services:
+  - type: web
+    name: mavis-data-agent
+    runtime: node
+    plan: free
+    region: singapore  # 新加坡节点, 国内访问快
+    branch: main
+    buildCommand: npm install
+    # 启动前先灌数据 (SQLite db 不会持久化, 每次启动重建)
+    startCommand: node data/seed_sqlite.js && node src/server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: HOST
+        value: "0.0.0.0"
+      - key: DEEPSEEK_API_KEY
+        sync: false  # 在 Render dashboard 手动配 (不写到 yaml, 避免泄漏)
+        description: "DeepSeek API key, 不配就走 Mock 模式. 从 https://platform.deepseek.com/ 获取"
+      - key: FEISHU_WEBHOOK_URL
+        sync: false
+        description: "飞书机器人 webhook (可选, 不配走 Mock 模式写本地 log)"
+    autoDeploy: true
